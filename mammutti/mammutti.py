@@ -61,11 +61,11 @@ def parse_app_config(fname: str):
     for i in parsed.iter(Tags.dependentAssembly):
         id = xget(i, Tags.assemblyIdentity)["name"]
         redir = xget(i, Tags.bindingRedirect)["newVersion"]
-        redirs.append(Redirect(id, redir, None))
+        redirs.append(Redirect(lib=id, to_ver=redir, extra=None))
 
     return AppConfig(
-        path=fname,
-        redirects=redirs
+        path=str(fname),
+        redirects=sorted(redirs, key=lambda r: r.lib)
     )
 
 
@@ -110,7 +110,7 @@ class Ws:
         self.msbuild_props = {}
 
     def configs(self):
-        return [f for f in self.all if f.endswith(".config")]
+        return self.by_ext(".config")
 
     def by_ext(self, ext):
         return [f for f in self.all if f.endswith(ext)]
@@ -183,6 +183,8 @@ class Ws:
                 if ref.hintpath and "packages" in ref.hintpath:
                     if not ref.tags or "paket" not in ref.tags:
                         parsed.add_error(f"no_paket: Should use Paket: {ref.hintpath}")
+                if ref.hintpath and ref.hintpath.startswith(".."):
+                    parsed.add_error("abs_hintpath: HintPath points outside repository: "+ ref.hintpath)
 
         self.check_canonical_refs(projs)
 
@@ -254,12 +256,15 @@ class Ws:
                 outputpath = self.to_rel((fname.parent / op).resolve())
 
         refs = []
+        errors = []
         for ref in parsed.iter(CsProjTags.Reference):
             name = ref.attrib["Include"].split(",")[0]
             hintpath = list(ref.iter(CsProjTags.HintPath))
             hp = None
             if hintpath:
-                hp = self.to_rel_join(prjroot, hintpath[0].text)
+                htext = hintpath[0].text
+                hp = self.to_rel_join(prjroot, htext)
+
             paket = list(ref.iter("Paket"))
             if paket:
                 tags = "paket"
@@ -269,7 +274,7 @@ class Ws:
             r = Reference(name=name, hintpath=hp, tags=tags)
 
             refs.append(r)
-        return CsProj(
+        ret = CsProj(
             path=self.to_rel(fname),
             name=ass_name,
             props=props,
@@ -279,6 +284,10 @@ class Ws:
             errors=None,
             home=f"{outputpath}/{ass_name}.dll"
         )
+        if errors:
+            ret.errors = errors
+
+        return ret
 
 
 class ModulesReport(BaseModel):
@@ -292,7 +301,8 @@ def main():
     modules = rep.dict(exclude_none=True, )["modules"]
     by_module = sorted(((m["name"], m) for m in modules), key=lambda e: e[0])
     by_module.insert(0, (".msbuild.props", ws.msbuild_props))
-
+    redirects = ws.collect_redirects()
+    by_module.insert(1, (".bindingredirects", redirects))
     dumped = dump(dict(by_module), sort_keys=False)
     print(dumped)
 
