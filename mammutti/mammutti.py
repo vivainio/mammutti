@@ -10,9 +10,9 @@ from xml.etree.ElementTree import ParseError
 from pydantic import BaseModel
 from yaml import dump
 
-import msbuildutil
-from xml_appconfig import Tags
-from xml_csproj import Tags as CsProjTags
+from . import msbuildutil
+from .xml_appconfig import Tags
+from .xml_csproj import Tags as CsProjTags
 
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -297,4 +297,5 @@ def main():
     print(dumped)
 
 
-main()
+if __name__ == "__main__":
+    main()
