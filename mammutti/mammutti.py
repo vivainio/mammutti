@@ -1,3 +1,4 @@
+import argparse
 import os.path
 import os.path
 import subprocess
@@ -293,16 +294,37 @@ class Ws:
 class ModulesReport(BaseModel):
     modules: List[CsProj]
 
+def strip_to_errors(modules: List[CsProj]):
+    res = []
+    for m in modules:
+        if not m.errors:
+            continue
+        m.props = {}
+        m.refs = []
+        m.prjrefs = []
+        res.append(m)
+
+    return res
+
+
 
 def main():
-    ws = Ws(sys.argv[1])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--errors", action="store_true", help="Only list modules with errors, strip details")
+    parser.add_argument("rootdir", help="Repository root directory")
+    parsed = parser.parse_args()
+    ws = Ws(parsed.rootdir)
     modules = ws.collect_modules()
+    if parsed.errors:
+        modules = strip_to_errors(modules)
     rep = ModulesReport(modules=modules)
     modules = rep.dict(exclude_none=True, )["modules"]
     by_module = sorted(((m["name"], m) for m in modules), key=lambda e: e[0])
-    by_module.insert(0, (".msbuild.props", ws.msbuild_props))
-    redirects = ws.collect_redirects()
-    by_module.insert(1, (".bindingredirects", redirects))
+    if not parsed.errors:
+        by_module.insert(0, (".msbuild.props", ws.msbuild_props))
+        redirects = ws.collect_redirects()
+        by_module.insert(1, (".bindingredirects", redirects))
+
     dumped = dump(dict(by_module), sort_keys=False)
     print(dumped)
 

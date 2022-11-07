@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(name='mammutti',
-      version='1.0.0',
+      version='1.2.0',
       description='Analyze huge .NET source trees for common errors',
       author='Ville M. Vainio',
       author_email='vivainio@gmail.com',
