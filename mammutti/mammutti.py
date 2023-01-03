@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from xml.etree.ElementTree import ParseError
+import re
 
 from pydantic import BaseModel
 from yaml import dump
@@ -109,6 +110,17 @@ class Ws:
                     subprocess.run("git ls-files", capture_output=True, cwd=root).stdout.splitlines()]
 
         self.msbuild_props = {}
+
+    def prune(self, pats: List[str]):
+        def prune_it(s):
+            for pat in pats:
+                if re.search(pat, s):
+                    return True
+
+            return False
+
+        self.all = [f for f in self.all if not prune_it(f)]
+        
 
     def configs(self):
         return self.by_ext(".config")
@@ -311,9 +323,12 @@ def strip_to_errors(modules: List[CsProj]):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--errors", action="store_true", help="Only list modules with errors, strip details")
+    parser.add_argument("--prune", action="append", help="Add regex pattern to prune projecs with certain full paths")
     parser.add_argument("rootdir", help="Repository root directory")
     parsed = parser.parse_args()
     ws = Ws(parsed.rootdir)
+
+    ws.prune(parsed.prune)
     modules = ws.collect_modules()
     if parsed.errors:
         modules = strip_to_errors(modules)
